@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>企业级 NL2SQL 平台 - 智能问答</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+        
+        :root {
+            --sky-blue: #4BA3E3;
+            --ocean-blue: #1A5F9E;
+            --cloud-white: #FFFFFF;
+            --signal-green: #3ad29f;
+            --signal-red: #ff5b5b;
+            --road-yellow: #F5A623;
+            --bg-light: #F2F8FD;
+        }
+
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: var(--bg-light);
+            color: #333;
+            /* Subtle texture background */
+            background-image: radial-gradient(rgba(75, 163, 227, 0.05) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Animations */
+        @keyframes slideUpFade {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-slide-up {
+            animation: slideUpFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        
+        /* AI Thinking Dots */
+        .typing-dot {
+            animation: typing 1.4s infinite ease-in-out both;
+        }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+
+        .deerflow-badge {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            font-size: 12px;
+            color: #94a3b8;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            background: rgba(255,255,255,0.7);
+            padding: 5px 12px;
+            border-radius: 20px;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255,255,255,0.5);
+            z-index: 1000;
+            font-weight: 500;
+        }
+        .deerflow-badge:hover {
+            color: var(--sky-blue);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(75, 163, 227, 0.2);
+            border-color: rgba(75, 163, 227, 0.3);
+        }
+
+        /* Input expanding transition */
+        textarea {
+            transition: height 0.2s ease;
+        }
+    </style>
+</head>
+<body class="h-screen flex overflow-hidden" x-data="chatApp()">
+
+    <!-- Toast Notification -->
+    <div x-show="toast.show" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 transform translate-y-2"
+         x-transition:enter-end="opacity-100 transform translate-y-0"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 transform translate-y-0"
+         x-transition:leave-end="opacity-0 transform translate-y-2"
+         class="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full shadow-lg border text-sm font-medium"
+         :class="{
+            'bg-green-50 border-green-200 text-green-700': toast.type === 'success',
+            'bg-blue-50 border-blue-200 text-blue-700': toast.type === 'info',
+            'bg-red-50 border-red-200 text-red-700': toast.type === 'error'
+         }"
+         style="display: none;">
+        <i class="fas" :class="{
+            'fa-check-circle': toast.type === 'success',
+            'fa-info-circle': toast.type === 'info',
+            'fa-exclamation-circle': toast.type === 'error'
+        }"></i>
+        <span x-text="toast.message"></span>
+    </div>
+
+    <!-- Sidebar (History) -->
+    <aside class="w-64 glass-panel border-r border-white/50 flex flex-col relative z-20 hidden md:flex transition-all duration-300" :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full absolute h-full'">
+        <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white font-bold shadow-md shadow-sky-200">
+                    <i class="fas fa-database text-sm"></i>
+                </div>
+                <h1 class="font-bold text-lg text-slate-800 tracking-tight">DataOcean</h1>
+            </div>
+            <button @click="sidebarOpen = false" class="md:hidden text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="p-4 flex-1 overflow-y-auto">
+            <button @click="newChat()" class="w-full mb-6 bg-white hover:bg-sky-50 text-sky-600 border border-sky-100 rounded-xl py-2.5 px-4 flex items-center justify-center gap-2 transition-all duration-200 font-medium text-sm shadow-sm hover:shadow group">
+                <i class="fas fa-plus group-hover:rotate-90 transition-transform duration-300"></i> 新建查询
+            </button>
+            
+            <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-2 flex items-center gap-2">
+                <i class="fas fa-history"></i> 历史提问
+            </h3>
+            <ul class="space-y-1.5">
+                <template x-for="(item, index) in history" :key="index">
+                    <li>
+                        <button @click="loadHistory(item)" 
+                                class="w-full text-left block px-3 py-2.5 rounded-lg text-sm transition-all duration-200 group relative overflow-hidden"
+                                :class="item.active ? 'bg-sky-50 text-sky-700 border border-sky-100 shadow-sm' : 'text-gray-600 hover:bg-white border border-transparent hover:border-gray-100 hover:shadow-sm'">
+                            <div class="absolute left-0 top-0 bottom-0 w-1 bg-sky-400 rounded-l-lg transition-transform duration-200" 
+                                 :class="item.active ? 'scale-y-100' : 'scale-y-0 group-hover:scale-y-50'"></div>
+                            <i class="far fa-comment-alt mr-2" :class="item.active ? 'text-sky-500' : 'text-gray-400 group-hover:text-sky-400'"></i>
+                            <span class="truncate inline-block align-bottom w-[160px]" x-text="item.title"></span>
+                        </button>
+                    </li>
+                </template>
+            </ul>
+        </div>
+        
+        <div class="p-4 border-t border-gray-100 bg-white/50">
+            <div class="flex items-center gap-3 px-2 cursor-pointer group">
+                <div class="relative">
+                    <div class="w-9 h-9 rounded-full bg-slate-200 overflow-hidden border-2 border-white shadow-sm group-hover:border-sky-200 transition-colors">
+                        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="User">
+                    </div>
+                    <div class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></div>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-bold text-slate-800 truncate group-hover:text-sky-600 transition-colors">张业务</p>
+                    <p class="text-xs text-slate-500 truncate">数据分析专员</p>
+                </div>
+                <i class="fas fa-ellipsis-v text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col h-full relative" :class="sidebarOpen ? 'md:ml-0' : 'ml-0'">
+        
+        <!-- Top Navbar -->
+        <header class="h-16 glass-panel border-b border-white/50 flex items-center justify-between px-4 md:px-6 z-10 sticky top-0 transition-all">
+            <div class="flex items-center gap-3">
+                <button @click="sidebarOpen = !sidebarOpen" class="w-8 h-8 rounded-md flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors">
+                    <i class="fas fa-bars"></i>
+                </button>
+                
+                <!-- Custom Dropdown for Domain Selection -->
+                <div class="relative" @click.away="domainDropdownOpen = false">
+                    <button @click="domainDropdownOpen = !domainDropdownOpen" 
+                            class="flex items-center gap-2 bg-white/80 hover:bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm transition-all duration-200 group">
+                        <div class="w-6 h-6 rounded bg-sky-50 flex items-center justify-center text-sky-500 group-hover:bg-sky-100 transition-colors">
+                            <i class="fas fa-layer-group text-xs"></i>
+                        </div>
+                        <div class="flex flex-col text-left">
+                            <span class="text-[10px] text-slate-400 leading-none mb-0.5">当前业务域</span>
+                            <span class="text-sm font-semibold text-slate-700 leading-none flex items-center gap-1">
+                                <span x-text="domains.find(d => d.id === currentDomain).name"></span>
+                                <i class="fas fa-chevron-down text-[10px] text-slate-400 ml-1 transition-transform duration-200" :class="domainDropdownOpen ? 'rotate-180' : ''"></i>
+                            </span>
+                        </div>
+                    </button>
+
+                    <!-- Dropdown Menu -->
+                    <div x-show="domainDropdownOpen" 
+                         x-transition:enter="transition ease-out duration-100"
+                         x-transition:enter-start="opacity-0 transform scale-95"
+                         x-transition:enter-end="opacity-100 transform scale-100"
+                         x-transition:leave="transition ease-in duration-75"
+                         x-transition:leave-start="opacity-100 transform scale-100"
+                         x-transition:leave-end="opacity-0 transform scale-95"
+                         class="absolute top-full left-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50" style="display: none;">
+                        <div class="px-3 py-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">选择数据源</div>
+                        <template x-for="domain in domains" :key="domain.id">
+                            <button @click="selectDomain(domain.id)" 
+                                    class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center justify-between transition-colors"
+                                    :class="currentDomain === domain.id ? 'bg-sky-50/50' : ''">
+                                <div class="flex items-center gap-3">
+                                    <span class="text-lg" x-text="domain.icon"></span>
+                                    <div>
+                                        <div class="text-sm font-medium text-slate-700" :class="currentDomain === domain.id ? 'text-sky-600' : ''" x-text="domain.name"></div>
+                                        <div class="text-xs text-slate-400" x-text="domain.db"></div>
+                                    </div>
+                                </div>
+                                <i class="fas fa-check text-sky-500" x-show="currentDomain === domain.id"></i>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 border border-green-100 shadow-inner">
+                    <span class="relative flex h-2 w-2">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                    </span>
+                    <span class="text-[10px] font-medium text-green-700">引擎在线</span>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <button class="w-8 h-8 rounded-full bg-white border border-gray-200 text-slate-400 hover:text-sky-500 shadow-sm flex items-center justify-center transition-colors">
+                    <i class="far fa-bell"></i>
+                </button>
+                <a href="b_end_dashboard.html" class="text-sm px-4 py-1.5 bg-slate-800 text-white rounded-lg hover:bg-slate-700 font-medium flex items-center gap-2 transition-all shadow-md shadow-slate-200">
+                    <i class="fas fa-shield-alt text-sky-400"></i> <span class="hidden md:inline">管理后台</span>
+                </a>
+            </div>
+        </header>
+
+        <!-- Chat Area -->
+        <div class="flex-1 overflow-y-auto p-4 md:p-8 pb-40 scroll-smooth" id="chat-container">
+            <div class="max-w-4xl mx-auto space-y-8">
+                
+                <!-- Welcome Message (Only show if no chat) -->
+                <div x-show="!hasChat" class="text-center py-16 animate-slide-up">
+                    <div class="relative inline-block mb-6">
+                        <div class="absolute inset-0 bg-sky-400 blur-xl opacity-20 rounded-full"></div>
+                        <div class="relative flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-br from-white to-sky-50 text-sky-500 shadow-lg border border-white">
+                            <i class="fas fa-sparkles text-3xl"></i>
+                        </div>
+                    </div>
+                    <h2 class="text-3xl font-bold text-slate-800 mb-3 tracking-tight">有什么我可以帮您的？</h2>
+                    <p class="text-slate-500 text-sm max-w-md mx-auto">
+                        已连接至 <span class="font-bold text-sky-600 px-2 py-0.5 bg-sky-50 rounded border border-sky-100" x-text="domains.find(d=>d.id===currentDomain).db"></span>，支持跨表联合查询。您可以直接用自然语言描述您的业务需求。
+                    </p>
+                    
+                    <div class="mt-10 grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl mx-auto text-left">
+                        <button @click="setInput('华东区上个月的退款率是多少？')" class="p-4 rounded-xl bg-white border border-gray-100 hover:border-sky-300 hover:shadow-md transition-all group">
+                            <div class="text-sky-500 mb-2"><i class="fas fa-chart-pie"></i></div>
+                            <div class="text-sm font-medium text-slate-700 mb-1 group-hover:text-sky-600 transition-colors">查询退款率</div>
+                            <div class="text-xs text-slate-400">"华东区上个月的退款率是多少？"</div>
+                        </button>
+                        <button @click="setInput('帮我统计昨天各部门的GMV排行')" class="p-4 rounded-xl bg-white border border-gray-100 hover:border-sky-300 hover:shadow-md transition-all group">
+                            <div class="text-orange-400 mb-2"><i class="fas fa-trophy"></i></div>
+                            <div class="text-sm font-medium text-slate-700 mb-1 group-hover:text-sky-600 transition-colors">部门业绩排行</div>
+                            <div class="text-xs text-slate-400">"帮我统计昨天各部门的GMV排行"</div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Chat Conversation Stream -->
+                <template x-if="hasChat">
+                    <div class="space-y-8">
+                        <!-- User Message -->
+                        <div class="flex justify-end animate-slide-up">
+                            <div class="max-w-[85%] md:max-w-[75%]">
+                                <div class="bg-gradient-to-br from-sky-500 to-blue-600 text-white rounded-2xl rounded-tr-sm px-5 py-3.5 shadow-md">
+                                    <p class="text-sm leading-relaxed" x-text="currentQuery"></p>
+                                </div>
+                                <div class="text-right text-[10px] text-slate-400 mt-1 mr-1">刚刚</div>
+                            </div>
+                        </div>
+
+                        <!-- AI Thinking State -->
+                        <div x-show="isThinking" class="flex gap-4 animate-slide-up">
+                            <div class="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center flex-shrink-0 shadow-sm">
+                                <div class="w-4 h-4 text-sky-500">
+                                    <svg class="animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-2xl rounded-tl-sm px-5 py-4 shadow-sm border border-gray-100 flex items-center gap-2">
+                                <span class="text-sm text-slate-500 font-medium" x-text="thinkingText">正在召回相关数据表</span>
+                                <div class="flex gap-1 ml-1">
+                                    <div class="w-1.5 h-1.5 bg-sky-400 rounded-full typing-dot"></div>
+                                    <div class="w-1.5 h-1.5 bg-sky-400 rounded-full typing-dot"></div>
+                                    <div class="w-1.5 h-1.5 bg-sky-400 rounded-full typing-dot"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- AI Response (Shown after thinking) -->
+                        <div x-show="showResult" class="flex gap-4 animate-slide-up">
+                            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white flex-shrink-0 shadow-md mt-1 ring-4 ring-sky-50">
+                                <i class="fas fa-robot text-xs"></i>
+                            </div>
+                            <div class="flex-1 space-y-4 max-w-[95%]">
+                                
+                                <!-- Reasoning / Whitebox Process -->
+                                <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-1 overflow-hidden transition-all duration-300" :class="showProcess ? 'pb-3' : ''">
+                                    <button @click="showProcess = !showProcess" class="w-full flex items-center justify-between p-3 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
+                                        <span class="font-medium text-sm flex items-center gap-2">
+                                            <i class="fas fa-check-circle text-green-500"></i> AI 思考与执行过程 (0.8s)
+                                        </span>
+                                        <i class="fas fa-chevron-down text-xs text-slate-400 transition-transform duration-300" :class="showProcess ? 'rotate-180' : ''"></i>
+                                    </button>
+                                    
+                                    <div x-show="showProcess" x-collapse class="px-4 pt-2">
+                                        <div class="space-y-4 pl-4 border-l-2 border-sky-100 text-xs text-slate-500 relative">
+                                            <div class="relative">
+                                                <span class="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-white border-2 border-sky-400"></span>
+                                                <div class="bg-slate-50 p-2.5 rounded-md border border-slate-100">
+                                                    <strong class="text-slate-700 block mb-1">意图识别</strong>
+                                                    时间: <span class="text-sky-600 bg-sky-50 px-1 rounded">上个月</span> | 
+                                                    维度: <span class="text-sky-600 bg-sky-50 px-1 rounded">华东区省份</span> | 
+                                                    指标: <span class="text-sky-600 bg-sky-50 px-1 rounded">退款率</span>
+                                                </div>
+                                            </div>
+                                            <div class="relative">
+                                                <span class="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-white border-2 border-sky-400"></span>
+                                                <div class="bg-slate-50 p-2.5 rounded-md border border-slate-100">
+                                                    <strong class="text-slate-700 block mb-1">Schema RAG</strong>
+                                                    检索召回了 <code>order_info</code>, <code>refund_record</code>, <code>dim_region</code> 表
+                                                </div>
+                                            </div>
+                                            <div class="relative">
+                                                <span class="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-white border-2 border-green-400"></span>
+                                                <div class="bg-slate-50 p-2.5 rounded-md border border-slate-100">
+                                                    <strong class="text-slate-700 block mb-1">SQL 生成与执行</strong>
+                                                    <span class="text-green-600"><i class="fas fa-check mr-1"></i>沙箱执行成功</span>，耗时 340ms。
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Result Text & Traceability -->
+                                <div class="text-slate-700 text-sm leading-relaxed bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                                    <p>这是为您计算的华东区各省份上个月（2026年3月）的退款率情况：</p>
+                                    
+                                    <div class="mt-4 bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-100 rounded-xl p-3.5 text-xs text-slate-600 flex gap-3 items-start shadow-inner">
+                                        <div class="w-6 h-6 rounded-full bg-white flex items-center justify-center text-sky-500 shadow-sm flex-shrink-0">
+                                            <i class="fas fa-shield-alt"></i>
+                                        </div>
+                                        <div class="pt-0.5 leading-relaxed">
+                                            <span class="font-bold text-sky-800">数据溯源：</span>关联了订单表和退款表。其中“退款金额”依赖了高可信字段 <code class="px-1.5 py-0.5 bg-white text-green-600 rounded shadow-sm border border-gray-100 font-bold">actual_refund</code>，计算口径符合业务规范。
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Echarts Container -->
+                                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 h-80 w-full relative group">
+                                    <div class="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                        <button class="w-7 h-7 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded flex items-center justify-center border border-slate-200 tooltip-trigger" title="切换为折线图">
+                                            <i class="fas fa-chart-line text-xs"></i>
+                                        </button>
+                                        <button class="w-7 h-7 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded flex items-center justify-center border border-slate-200 tooltip-trigger" title="下载图表">
+                                            <i class="fas fa-download text-xs"></i>
+                                        </button>
+                                    </div>
+                                    <div id="chart-container" class="w-full h-full"></div>
+                                </div>
+
+                                <!-- Data Table -->
+                                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                                    <div class="bg-slate-50/80 px-5 py-3.5 border-b border-gray-100 flex justify-between items-center">
+                                        <span class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                            <i class="fas fa-table text-sky-500"></i> 数据明细
+                                        </span>
+                                        <button @click="showToast('CSV 导出中...', 'info')" class="text-xs font-medium bg-white text-slate-600 border border-slate-200 px-3 py-1.5 rounded hover:bg-slate-50 hover:text-sky-600 transition-colors shadow-sm flex items-center gap-1">
+                                            <i class="fas fa-file-export"></i> 导出数据
+                                        </button>
+                                    </div>
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-left text-sm text-slate-600">
+                                            <thead class="bg-white text-xs uppercase text-slate-400 border-b border-gray-100">
+                                                <tr>
+                                                    <th class="px-5 py-3.5 font-semibold">省份</th>
+                                                    <th class="px-5 py-3.5 font-semibold text-right">总GMV(元)</th>
+                                                    <th class="px-5 py-3.5 font-semibold text-right">退款金额(元)</th>
+                                                    <th class="px-5 py-3.5 font-semibold text-right">退款率</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-gray-50">
+                                                <tr class="hover:bg-sky-50/40 transition-colors group">
+                                                    <td class="px-5 py-3.5 font-medium text-slate-700 group-hover:text-sky-700">浙江省</td>
+                                                    <td class="px-5 py-3.5 text-right font-mono">1,250,000</td>
+                                                    <td class="px-5 py-3.5 text-right font-mono">45,000</td>
+                                                    <td class="px-5 py-3.5 text-right text-green-600 font-bold">3.6%</td>
+                                                </tr>
+                                                <tr class="hover:bg-sky-50/40 transition-colors group">
+                                                    <td class="px-5 py-3.5 font-medium text-slate-700 group-hover:text-sky-700">江苏省</td>
+                                                    <td class="px-5 py-3.5 text-right font-mono">980,000</td>
+                                                    <td class="px-5 py-3.5 text-right font-mono">41,160</td>
+                                                    <td class="px-5 py-3.5 text-right text-orange-500 font-bold">4.2%</td>
+                                                </tr>
+                                                <tr class="hover:bg-sky-50/40 transition-colors group">
+                                                    <td class="px-5 py-3.5 font-medium text-slate-700 group-hover:text-sky-700">上海市</td>
+                                                    <td class="px-5 py-3.5 text-right font-mono">1,560,000</td>
+                                                    <td class="px-5 py-3.5 text-right font-mono">49,920</td>
+                                                    <td class="px-5 py-3.5 text-right text-green-600 font-bold">3.2%</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <!-- Feedback -->
+                                <div class="flex items-center justify-between pt-2 px-1">
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-xs font-medium text-slate-400">结果是否有帮助？</span>
+                                        <button @click="showToast('感谢您的反馈！', 'success')" class="w-9 h-9 rounded-full border border-gray-200 text-gray-400 hover:text-green-500 hover:border-green-300 hover:bg-green-50 transition-all flex items-center justify-center bg-white shadow-sm" title="结果准确">
+                                            <i class="far fa-thumbs-up"></i>
+                                        </button>
+                                        <button @click="showToast('已记录反馈，治理引擎将进行核实。', 'info')" class="w-9 h-9 rounded-full border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-300 hover:bg-red-50 transition-all flex items-center justify-center bg-white shadow-sm" title="结果不准">
+                                            <i class="far fa-thumbs-down"></i>
+                                        </button>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <button class="text-xs text-slate-400 hover:text-sky-500 flex items-center gap-1 transition-colors"><i class="fas fa-redo text-[10px]"></i> 重新生成</button>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+            </div>
+        </div>
+
+        <!-- Input Area (Fixed Bottom) -->
+        <div class="absolute bottom-0 left-0 right-0 glass-panel border-t border-white p-4 md:px-8 pb-6 md:pb-8 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)]">
+            <div class="max-w-4xl mx-auto relative">
+                <!-- Quick Prompts (hide when typing) -->
+                <div class="absolute -top-12 left-0 flex gap-2 transition-opacity duration-300" :class="inputQuery.length > 0 ? 'opacity-0 pointer-events-none' : 'opacity-100'">
+                    <button @click="setInput('统计各部门业绩排行')" class="text-xs bg-white/80 backdrop-blur border border-gray-200 text-gray-600 px-3.5 py-1.5 rounded-full shadow-sm hover:border-sky-300 hover:text-sky-600 hover:bg-white transition-all transform hover:-translate-y-0.5">
+                        📊 统计各部门业绩
+                    </button>
+                    <button @click="setInput('近7天订单趋势折线图')" class="text-xs bg-white/80 backdrop-blur border border-gray-200 text-gray-600 px-3.5 py-1.5 rounded-full shadow-sm hover:border-sky-300 hover:text-sky-600 hover:bg-white transition-all transform hover:-translate-y-0.5 hidden sm:block">
+                        📈 近7天订单趋势
+                    </button>
+                </div>
+                
+                <div class="bg-white border-2 border-gray-100 rounded-2xl shadow-lg p-2 flex items-end focus-within:ring-4 focus-within:ring-sky-100 focus-within:border-sky-400 transition-all duration-300 relative group">
+                    <button class="p-3 text-slate-400 hover:text-sky-500 hover:bg-sky-50 rounded-xl transition-all flex-shrink-0">
+                        <i class="fas fa-paperclip"></i>
+                    </button>
+                    <textarea 
+                        x-model="inputQuery"
+                        @keydown.enter.prevent="submitQuery()"
+                        class="flex-1 max-h-32 min-h-[44px] bg-transparent border-none outline-none resize-none text-sm text-slate-700 py-3 px-2 leading-relaxed"
+                        placeholder="输入您的业务问题，例如：上个月各省份的 GMV 占比是多少？(按回车发送)"
+                        rows="1"
+                        x-ref="textarea"
+                        @input="resizeTextarea"
+                    ></textarea>
+                    
+                    <button @click="submitQuery()" 
+                            class="p-3 rounded-xl transition-all duration-300 m-1 flex items-center justify-center w-11 h-11 flex-shrink-0 relative overflow-hidden"
+                            :class="inputQuery.trim().length > 0 ? 'bg-sky-500 text-white shadow-md shadow-sky-200 hover:bg-sky-600 hover:scale-105' : 'bg-slate-100 text-slate-400'">
+                        <i class="fas fa-paper-plane text-sm relative z-10" :class="inputQuery.trim().length > 0 ? 'animate-pulse-once' : ''"></i>
+                        <!-- Hover effect overlay -->
+                        <div class="absolute inset-0 bg-white/20 transform scale-0 rounded-full transition-transform duration-300 group-hover:scale-150 opacity-0 group-hover:opacity-100"></div>
+                    </button>
+                </div>
+                <div class="text-center mt-3">
+                    <span class="text-[10px] font-medium text-slate-400 flex items-center justify-center gap-1.5">
+                        <i class="fas fa-shield-alt text-sky-300"></i> AI 生成结果可能存在误差，请结合数据溯源进行核实。
+                    </span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Branding -->
+    <a href="https://deerflow.tech" target="_blank" class="deerflow-badge">✦ Created By Deerflow</a>
+
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('chatApp', () => ({
+                sidebarOpen: true,
+                domainDropdownOpen: false,
+                currentDomain: 'trade',
+                inputQuery: '',
+                hasChat: false,
+                isThinking: false,
+                showResult: false,
+                showProcess: true,
+                currentQuery: '',
+                thinkingText: '正在理解业务意图...',
+                toast: { show: false, message: '', type: 'success' },
+                
+                domains: [
+                    { id: 'trade', name: '交易订单域', db: 'trade_db', icon: '🛒' },
+                    { id: 'finance', name: '财务结算域', db: 'finance_db', icon: '💰' },
+                    { id: 'user', name: '用户画像域', db: 'user_db', icon: '👥' }
+                ],
+                
+                history: [
+                    { title: '华东区上个月退款率', active: true },
+                    { title: '昨天各部门GMV排行', active: false },
+                    { title: '统计活跃用户留存', active: false }
+                ],
+
+                init() {
+                    // Check screen size for sidebar
+                    if (window.innerWidth < 768) {
+                        this.sidebarOpen = false;
+                    }
+                },
+
+                selectDomain(id) {
+                    this.currentDomain = id;
+                    this.domainDropdownOpen = false;
+                    this.showToast(`已切换至 ${this.domains.find(d=>d.id===id).name}`, 'success');
+                },
+
+                setInput(text) {
+                    this.inputQuery = text;
+                    this.resizeTextarea();
+                    this.$refs.textarea.focus();
+                },
+
+                resizeTextarea() {
+                    const el = this.$refs.textarea;
+                    el.style.height = 'auto';
+                    el.style.height = Math.min(el.scrollHeight, 128) + 'px';
+                },
+
+                newChat() {
+                    this.hasChat = false;
+                    this.isThinking = false;
+                    this.showResult = false;
+                    this.inputQuery = '';
+                    this.history.forEach(h => h.active = false);
+                },
+
+                loadHistory(item) {
+                    this.history.forEach(h => h.active = false);
+                    item.active = true;
+                    this.currentQuery = "帮我查一下华东区上个月的退款率，顺便按省份画个柱状图对比一下。";
+                    this.hasChat = true;
+                    this.isThinking = false;
+                    this.showResult = true;
+                    this.renderChart();
+                },
+
+                submitQuery() {
+                    if (this.inputQuery.trim() === '') return;
+                    
+                    this.currentQuery = this.inputQuery;
+                    this.inputQuery = '';
+                    this.resizeTextarea();
+                    this.hasChat = true;
+                    this.showResult = false;
+                    this.isThinking = true;
+                    
+                    // Simulate thinking steps
+                    setTimeout(() => { this.thinkingText = '检索 Schema 与 skills.md...'; }, 800);
+                    setTimeout(() => { this.thinkingText = '正在生成并验证 SQL...'; }, 1600);
+                    
+                    // Show result
+                    setTimeout(() => {
+                        this.isThinking = false;
+                        this.showResult = true;
+                        // Scroll to bottom
+                        setTimeout(() => {
+                            const container = document.getElementById('chat-container');
+                            container.scrollTop = container.scrollHeight;
+                            this.renderChart();
+                        }, 50);
+                    }, 2400);
+                },
+
+                showToast(message, type = 'success') {
+                    this.toast.message = message;
+                    this.toast.type = type;
+                    this.toast.show = true;
+                    setTimeout(() => { this.toast.show = false; }, 3000);
+                },
+
+                renderChart() {
+                    const chartDom = document.getElementById('chart-container');
+                    if (!chartDom) return;
+                    
+                    // Dispose existing instance if any
+                    const existingInstance = echarts.getInstanceByDom(chartDom);
+                    if (existingInstance) {
+                        existingInstance.dispose();
+                    }
+                    
+                    const myChart = echarts.init(chartDom);
+                    const option = {
+                        color: ['#4BA3E3', '#3ad29f', '#ff5b5b'],
+                        tooltip: {
+                            trigger: 'axis',
+                            axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(75, 163, 227, 0.05)' } },
+                            formatter: '{b} <br/> <span style="display:inline-block;margin-right:4px;border-radius:10px;width:10px;height:10px;background-color:#4BA3E3;"></span> {a}: <b>{c}%</b>',
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                            borderColor: '#e2e8f0',
+                            textStyle: { color: '#334155', fontSize: 12 },
+                            padding: [10, 15],
+                            extraCssText: 'box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-radius: 8px;'
+                        },
+                        grid: { top: '15%', left: '3%', right: '4%', bottom: '3%', containLabel: true },
+                        xAxis: {
+                            type: 'category',
+                            data: ['上海市', '浙江省', '江苏省'],
+                            axisLine: { lineStyle: { color: '#e2e8f0' } },
+                            axisTick: { show: false },
+                            axisLabel: { color: '#64748b', margin: 12, fontWeight: 500 }
+                        },
+                        yAxis: {
+                            type: 'value',
+                            name: '退款率 (%)',
+                            nameTextStyle: { color: '#94a3b8', padding: [0, 0, 0, 10], fontSize: 11 },
+                            axisLabel: { formatter: '{value}%', color: '#94a3b8' },
+                            splitLine: { lineStyle: { type: 'dashed', color: '#f1f5f9' } }
+                        },
+                        series: [
+                            {
+                                name: '退款率',
+                                type: 'bar',
+                                barWidth: '35%',
+                                itemStyle: {
+                                    borderRadius: [6, 6, 0, 0],
+                                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                        { offset: 0, color: '#4BA3E3' },
+                                        { offset: 1, color: '#1A5F9E' }
+                                    ]),
+                                    shadowColor: 'rgba(75, 163, 227, 0.2)',
+                                    shadowBlur: 10
+                                },
+                                data: [
+                                    {value: 3.2, itemStyle: {color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: '#3ad29f' }, { offset: 1, color: '#27b585' }])}}, 
+                                    {value: 3.6}, 
+                                    {value: 4.2, itemStyle: {color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: '#F5A623' }, { offset: 1, color: '#d98b11' }])}}
+                                ],
+                                animationDelay: function (idx) { return idx * 100; },
+                                animationDuration: 1000,
+                                animationEasing: 'cubicOut'
+                            }
+                        ]
+                    };
+
+                    myChart.setOption(option);
+                    window.addEventListener('resize', () => { myChart.resize(); });
+                }
+            }));
+        });
+    </script>
+</body>
+</html>
