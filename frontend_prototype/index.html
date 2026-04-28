@@ -532,11 +532,25 @@
                     { title: '昨天各部门GMV排行', active: false },
                     { title: '统计活跃用户留存', active: false }
                 ],
+                
+                chartInstance: null,
+                chartResizeHandler: null,
 
                 init() {
                     // Check screen size for sidebar
                     if (window.innerWidth < 768) {
                         this.sidebarOpen = false;
+                    }
+                },
+
+                cleanupChart() {
+                    if (this.chartResizeHandler) {
+                        window.removeEventListener('resize', this.chartResizeHandler);
+                        this.chartResizeHandler = null;
+                    }
+                    if (this.chartInstance) {
+                        this.chartInstance.dispose();
+                        this.chartInstance = null;
                     }
                 },
 
@@ -559,6 +573,7 @@
                 },
 
                 newChat() {
+                    this.cleanupChart();
                     this.hasChat = false;
                     this.isThinking = false;
                     this.showResult = false;
@@ -610,18 +625,8 @@
                     setTimeout(() => { this.toast.show = false; }, 3000);
                 },
 
-                renderChart() {
-                    const chartDom = document.getElementById('chart-container');
-                    if (!chartDom) return;
-                    
-                    // Dispose existing instance if any
-                    const existingInstance = echarts.getInstanceByDom(chartDom);
-                    if (existingInstance) {
-                        existingInstance.dispose();
-                    }
-                    
-                    const myChart = echarts.init(chartDom);
-                    const option = {
+                buildChartOption() {
+                    return {
                         color: ['#4BA3E3', '#3ad29f', '#ff5b5b'],
                         tooltip: {
                             trigger: 'axis',
@@ -673,9 +678,23 @@
                             }
                         ]
                     };
+                },
 
-                    myChart.setOption(option);
-                    window.addEventListener('resize', () => { myChart.resize(); });
+                renderChart() {
+                    const chartDom = document.getElementById('chart-container');
+                    if (!chartDom) return;
+                    
+                    this.cleanupChart();
+                    
+                    this.chartInstance = echarts.init(chartDom);
+                    this.chartInstance.setOption(this.buildChartOption());
+                    
+                    this.chartResizeHandler = () => {
+                        if (this.chartInstance) {
+                            this.chartInstance.resize();
+                        }
+                    };
+                    window.addEventListener('resize', this.chartResizeHandler);
                 }
             }));
         });
