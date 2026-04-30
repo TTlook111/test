@@ -128,6 +128,41 @@
         <span x-text="toast.message"></span>
     </div>
 
+    <!-- Feedback Reason Modal -->
+    <div x-show="showFeedbackModal"
+         class="fixed inset-0 z-50 flex items-center justify-center p-4"
+         style="background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); display: none;"
+         x-transition.opacity>
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all"
+             @click.away="showFeedbackModal = false">
+            <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-3 bg-red-50/50">
+                <div class="w-8 h-8 rounded-full bg-red-100 text-red-500 flex items-center justify-center"><i class="far fa-thumbs-down"></i></div>
+                <h3 class="text-lg font-bold text-slate-800">反馈问题原因</h3>
+            </div>
+            <div class="p-6 space-y-3">
+                <p class="text-sm text-slate-500 mb-3">请选择反馈原因，帮助我们改进：</p>
+                <template x-for="reason in feedbackReasons" :key="reason.id">
+                    <label class="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all"
+                           :class="selectedFeedbackReason === reason.id ? 'border-sky-400 bg-sky-50' : 'border-gray-200 hover:border-gray-300'">
+                        <input type="radio" name="feedback-reason" :value="reason.id" x-model="selectedFeedbackReason" class="text-sky-500 focus:ring-sky-500">
+                        <div>
+                            <div class="text-sm font-medium text-slate-700" x-text="reason.label"></div>
+                            <div class="text-xs text-slate-400" x-text="reason.desc"></div>
+                        </div>
+                    </label>
+                </template>
+                <div x-show="selectedFeedbackReason === 'other'" class="mt-2">
+                    <textarea x-model="feedbackComment" placeholder="请补充说明..." class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400 resize-none" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="px-6 py-4 bg-slate-50 border-t border-gray-100 flex justify-end gap-2">
+                <button @click="showFeedbackModal = false" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">取消</button>
+                <button @click="submitFeedback()" class="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg shadow-sm shadow-red-200 transition-colors"
+                        :disabled="!selectedFeedbackReason">提交反馈</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Sidebar (History) -->
     <aside class="w-64 glass-panel border-r border-white/50 flex flex-col relative z-20 hidden md:flex transition-all duration-300" :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full absolute h-full'">
         <div class="p-5 border-b border-gray-100 flex items-center justify-between">
@@ -143,23 +178,36 @@
         </div>
         
         <div class="p-4 flex-1 overflow-y-auto">
-            <button @click="newChat()" class="w-full mb-6 bg-white hover:bg-sky-50 text-sky-600 border border-sky-100 rounded-xl py-2.5 px-4 flex items-center justify-center gap-2 transition-all duration-200 font-medium text-sm shadow-sm hover:shadow group">
+            <button @click="newChat()" class="w-full mb-4 bg-white hover:bg-sky-50 text-sky-600 border border-sky-100 rounded-xl py-2.5 px-4 flex items-center justify-center gap-2 transition-all duration-200 font-medium text-sm shadow-sm hover:shadow group">
                 <i class="fas fa-plus group-hover:rotate-90 transition-transform duration-300"></i> 新建查询
             </button>
-            
-            <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-2 flex items-center gap-2">
-                <i class="fas fa-history"></i> 历史提问
-            </h3>
-            <ul class="space-y-1.5">
+
+            <div class="flex items-center justify-between mb-2 px-2">
+                <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                    <i class="fas fa-history"></i> 历史会话
+                </h3>
+                <span class="text-[10px] text-slate-400" x-text="`${history.length} 条`"></span>
+            </div>
+            <ul class="space-y-1">
                 <template x-for="(item, index) in history" :key="index">
-                    <li>
-                        <button @click="loadHistory(item)" 
-                                class="w-full text-left block px-3 py-2.5 rounded-lg text-sm transition-all duration-200 group relative overflow-hidden"
+                    <li class="group/item relative">
+                        <button @click="loadHistory(item)"
+                                class="w-full text-left block px-3 py-2.5 rounded-lg text-sm transition-all duration-200 relative overflow-hidden"
                                 :class="item.active ? 'bg-sky-50 text-sky-700 border border-sky-100 shadow-sm' : 'text-gray-600 hover:bg-white border border-transparent hover:border-gray-100 hover:shadow-sm'">
-                            <div class="absolute left-0 top-0 bottom-0 w-1 bg-sky-400 rounded-l-lg transition-transform duration-200" 
-                                 :class="item.active ? 'scale-y-100' : 'scale-y-0 group-hover:scale-y-50'"></div>
-                            <i class="far fa-comment-alt mr-2" :class="item.active ? 'text-sky-500' : 'text-gray-400 group-hover:text-sky-400'"></i>
-                            <span class="truncate inline-block align-bottom w-[160px]" x-text="item.title"></span>
+                            <div class="absolute left-0 top-0 bottom-0 w-1 bg-sky-400 rounded-l-lg transition-transform duration-200"
+                                 :class="item.active ? 'scale-y-100' : 'scale-y-0 group-hover/item:scale-y-50'"></div>
+                            <div class="flex items-center gap-2">
+                                <i class="far fa-comment-alt flex-shrink-0" :class="item.active ? 'text-sky-500' : 'text-gray-400 group-hover/item:text-sky-400'"></i>
+                                <div class="flex-1 min-w-0">
+                                    <span class="truncate block text-sm" x-text="item.title"></span>
+                                    <span class="text-[10px] text-slate-400" x-text="item.time"></span>
+                                </div>
+                            </div>
+                        </button>
+                        <button @click.stop="deleteHistory(index)"
+                                class="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover/item:opacity-100 transition-all"
+                                title="删除会话">
+                            <i class="fas fa-trash-alt text-[10px]"></i>
                         </button>
                     </li>
                 </template>
@@ -368,27 +416,69 @@
                                 <div class="text-slate-700 text-sm leading-relaxed bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
                                     <p>这是为您计算的华东区各省份上个月（2026年3月）的退款率情况：</p>
                                     
-                                    <div class="mt-4 bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-100 rounded-xl p-3.5 text-xs text-slate-600 flex gap-3 items-start shadow-inner">
-                                        <div class="w-6 h-6 rounded-full bg-white flex items-center justify-center text-sky-500 shadow-sm flex-shrink-0">
-                                            <i class="fas fa-shield-alt"></i>
+                                    <div class=”mt-4 bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-100 rounded-xl p-4 text-xs text-slate-600 shadow-inner space-y-2.5”>
+                                        <div class=”flex gap-3 items-start”>
+                                            <div class=”w-6 h-6 rounded-full bg-white flex items-center justify-center text-sky-500 shadow-sm flex-shrink-0”>
+                                                <i class=”fas fa-shield-alt”></i>
+                                            </div>
+                                            <div class=”pt-0.5 leading-relaxed”>
+                                                <span class=”font-bold text-sky-800”>数据溯源：</span>关联了订单表和退款表。其中”退款金额”依赖了高可信字段 <code class=”px-1.5 py-0.5 bg-white text-green-600 rounded shadow-sm border border-gray-100 font-bold”>actual_refund</code>，计算口径符合业务规范。
+                                            </div>
                                         </div>
-                                        <div class="pt-0.5 leading-relaxed">
-                                            <span class="font-bold text-sky-800">数据溯源：</span>关联了订单表和退款表。其中“退款金额”依赖了高可信字段 <code class="px-1.5 py-0.5 bg-white text-green-600 rounded shadow-sm border border-gray-100 font-bold">actual_refund</code>，计算口径符合业务规范。
+                                        <div class=”flex gap-3 items-start”>
+                                            <div class=”w-6 h-6 rounded-full bg-white flex items-center justify-center text-purple-500 shadow-sm flex-shrink-0”>
+                                                <i class=”fas fa-book”></i>
+                                            </div>
+                                            <div class=”pt-0.5 leading-relaxed”>
+                                                <span class=”font-bold text-purple-800”>依据规则：</span>
+                                                <span class=”text-purple-600”>skills.md / 01_核心交易链路.md</span> — “退款金额取 <code class=”px-1 py-0.5 bg-white text-slate-700 rounded border border-gray-100”>refund_record.actual_refund</code>，且 <code class=”px-1 py-0.5 bg-white text-slate-700 rounded border border-gray-100”>refund_status = 'SUCCESS'</code>”
+                                            </div>
+                                        </div>
+                                        <div class=”flex gap-3 items-start”>
+                                            <div class=”w-6 h-6 rounded-full bg-white flex items-center justify-center text-orange-500 shadow-sm flex-shrink-0”>
+                                                <i class=”fas fa-check-double”></i>
+                                            </div>
+                                            <div class=”pt-0.5 leading-relaxed flex flex-wrap gap-1.5 items-center”>
+                                                <span class=”font-bold text-orange-800”>字段可信度：</span>
+                                                <span class=”px-1.5 py-0.5 bg-green-100 text-green-700 rounded font-mono text-[10px]”>actual_refund: 95 <i class=”fas fa-shield-alt ml-0.5”></i></span>
+                                                <span class=”px-1.5 py-0.5 bg-green-100 text-green-700 rounded font-mono text-[10px]”>total_amount: 90 <i class=”fas fa-shield-alt ml-0.5”></i></span>
+                                                <span class=”px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded font-mono text-[10px]”>province: 60 <i class=”fas fa-minus-circle ml-0.5”></i></span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
                                 <!-- Echarts Container -->
-                                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 h-80 w-full relative group">
-                                    <div class="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                        <button class="w-7 h-7 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded flex items-center justify-center border border-slate-200 tooltip-trigger" title="切换为折线图">
-                                            <i class="fas fa-chart-line text-xs"></i>
-                                        </button>
-                                        <button class="w-7 h-7 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded flex items-center justify-center border border-slate-200 tooltip-trigger" title="下载图表">
-                                            <i class="fas fa-download text-xs"></i>
-                                        </button>
+                                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                                    <div class="flex items-center justify-between px-5 py-2.5 border-b border-gray-100">
+                                        <span class="text-xs font-bold text-slate-700 flex items-center gap-2">
+                                            <i class="fas fa-chart-bar text-sky-500"></i> 数据图表
+                                        </span>
+                                        <div class="flex items-center gap-1">
+                                            <button @click="switchChart('bar')"
+                                                    class="px-2.5 py-1 text-[10px] font-medium rounded transition-all"
+                                                    :class="chartType === 'bar' ? 'bg-sky-500 text-white' : 'text-slate-500 hover:bg-slate-100'">
+                                                <i class="fas fa-chart-bar"></i> 柱状图
+                                            </button>
+                                            <button @click="switchChart('line')"
+                                                    class="px-2.5 py-1 text-[10px] font-medium rounded transition-all"
+                                                    :class="chartType === 'line' ? 'bg-sky-500 text-white' : 'text-slate-500 hover:bg-slate-100'">
+                                                <i class="fas fa-chart-line"></i> 折线图
+                                            </button>
+                                            <button @click="switchChart('pie')"
+                                                    class="px-2.5 py-1 text-[10px] font-medium rounded transition-all"
+                                                    :class="chartType === 'pie' ? 'bg-sky-500 text-white' : 'text-slate-500 hover:bg-slate-100'">
+                                                <i class="fas fa-chart-pie"></i> 饼图
+                                            </button>
+                                            <div class="w-px h-4 bg-gray-200 mx-1"></div>
+                                            <button @click="downloadChart()" class="px-2 py-1 text-slate-400 hover:text-sky-500 transition-colors" title="导出 PNG">
+                                                <i class="fas fa-download text-[10px]"></i>
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div id="chart-container" class="w-full h-full"></div>
+                                    <div class="p-5 h-72 w-full">
+                                        <div id="chart-container" class="w-full h-full"></div>
+                                    </div>
                                 </div>
 
                                 <!-- Data Table -->
@@ -439,10 +529,10 @@
                                 <div class="flex items-center justify-between pt-2 px-1">
                                     <div class="flex items-center gap-3">
                                         <span class="text-xs font-medium text-slate-400">结果是否有帮助？</span>
-                                        <button @click="showToast('感谢您的反馈！', 'success')" class="w-9 h-9 rounded-full border border-gray-200 text-gray-400 hover:text-green-500 hover:border-green-300 hover:bg-green-50 transition-all flex items-center justify-center bg-white shadow-sm" title="结果准确">
+                                        <button @click="submitPositiveFeedback()" class="w-9 h-9 rounded-full border border-gray-200 text-gray-400 hover:text-green-500 hover:border-green-300 hover:bg-green-50 transition-all flex items-center justify-center bg-white shadow-sm" title="结果准确">
                                             <i class="far fa-thumbs-up"></i>
                                         </button>
-                                        <button @click="showToast('已记录反馈，治理引擎将进行核实。', 'info')" class="w-9 h-9 rounded-full border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-300 hover:bg-red-50 transition-all flex items-center justify-center bg-white shadow-sm" title="结果不准">
+                                        <button @click="showFeedbackModal = true; selectedFeedbackReason = ''; feedbackComment = ''" class="w-9 h-9 rounded-full border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-300 hover:bg-red-50 transition-all flex items-center justify-center bg-white shadow-sm" title="结果不准">
                                             <i class="far fa-thumbs-down"></i>
                                         </button>
                                     </div>
@@ -520,17 +610,31 @@
                 currentQuery: '',
                 thinkingText: '正在理解业务意图...',
                 toast: { show: false, message: '', type: 'success' },
-                
+
+                // Feedback modal
+                showFeedbackModal: false,
+                selectedFeedbackReason: '',
+                feedbackComment: '',
+                feedbackReasons: [
+                    { id: 'inaccurate', label: '数据不准确', desc: '查询结果与预期不符或数据有误' },
+                    { id: 'wrong_chart', label: '图表类型不合适', desc: '推荐的图表类型不能很好地展示数据' },
+                    { id: 'wrong_caliber', label: '口径不对', desc: '计算逻辑或业务口径与实际需求不一致' },
+                    { id: 'other', label: '其他原因', desc: '请在下方补充说明' }
+                ],
+
+                // Chart type switching
+                chartType: 'bar',
+
                 domains: [
                     { id: 'trade', name: '交易订单域', db: 'trade_db', icon: '🛒' },
                     { id: 'finance', name: '财务结算域', db: 'finance_db', icon: '💰' },
                     { id: 'user', name: '用户画像域', db: 'user_db', icon: '👥' }
                 ],
-                
+
                 history: [
-                    { title: '华东区上个月退款率', active: true },
-                    { title: '昨天各部门GMV排行', active: false },
-                    { title: '统计活跃用户留存', active: false }
+                    { title: '华东区上个月退款率', time: '今天 10:45', active: true },
+                    { title: '昨天各部门GMV排行', time: '今天 09:10', active: false },
+                    { title: '统计活跃用户留存', time: '昨天 16:30', active: false }
                 ],
                 
                 chartInstance: null,
@@ -578,17 +682,59 @@
                     this.isThinking = false;
                     this.showResult = false;
                     this.inputQuery = '';
+                    this.chartType = 'bar';
                     this.history.forEach(h => h.active = false);
                 },
 
                 loadHistory(item) {
+                    this.cleanupChart();
                     this.history.forEach(h => h.active = false);
                     item.active = true;
                     this.currentQuery = "帮我查一下华东区上个月的退款率，顺便按省份画个柱状图对比一下。";
                     this.hasChat = true;
                     this.isThinking = false;
                     this.showResult = true;
+                    this.chartType = 'bar';
+                    setTimeout(() => this.renderChart(), 100);
+                },
+
+                deleteHistory(index) {
+                    const item = this.history[index];
+                    if (item.active) {
+                        this.newChat();
+                    }
+                    this.history.splice(index, 1);
+                    this.showToast('会话已删除', 'info');
+                },
+
+                submitPositiveFeedback() {
+                    this.showToast('感谢您的反馈！', 'success');
+                },
+
+                submitFeedback() {
+                    if (!this.selectedFeedbackReason) return;
+                    const reason = this.feedbackReasons.find(r => r.id === this.selectedFeedbackReason);
+                    this.showFeedbackModal = false;
+                    this.showToast(`已提交反馈：${reason.label}，治理引擎将进行核实`, 'success');
+                    this.selectedFeedbackReason = '';
+                    this.feedbackComment = '';
+                },
+
+                switchChart(type) {
+                    this.chartType = type;
                     this.renderChart();
+                    setTimeout(() => { if (this.chartInstance) this.chartInstance.resize(); }, 100);
+                },
+
+                downloadChart() {
+                    if (this.chartInstance) {
+                        const url = this.chartInstance.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#fff' });
+                        const link = document.createElement('a');
+                        link.download = 'chart.png';
+                        link.href = url;
+                        link.click();
+                        this.showToast('图表已导出为 PNG', 'success');
+                    }
                 },
 
                 submitQuery() {
@@ -626,12 +772,18 @@
                 },
 
                 buildChartOption() {
-                    return {
+                    const categories = ['上海市', '浙江省', '江苏省'];
+                    const data = [
+                        { value: 3.2, itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: '#3ad29f' }, { offset: 1, color: '#27b585' }]) } },
+                        { value: 3.6 },
+                        { value: 4.2, itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: '#F5A623' }, { offset: 1, color: '#d98b11' }]) } }
+                    ];
+                    const plainData = [3.2, 3.6, 4.2];
+
+                    const baseOption = {
                         color: ['#4BA3E3', '#3ad29f', '#ff5b5b'],
                         tooltip: {
-                            trigger: 'axis',
-                            axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(75, 163, 227, 0.05)' } },
-                            formatter: '{b} <br/> <span style="display:inline-block;margin-right:4px;border-radius:10px;width:10px;height:10px;background-color:#4BA3E3;"></span> {a}: <b>{c}%</b>',
+                            trigger: this.chartType === 'pie' ? 'item' : 'axis',
                             backgroundColor: 'rgba(255, 255, 255, 0.95)',
                             borderColor: '#e2e8f0',
                             textStyle: { color: '#334155', fontSize: 12 },
@@ -641,7 +793,7 @@
                         grid: { top: '15%', left: '3%', right: '4%', bottom: '3%', containLabel: true },
                         xAxis: {
                             type: 'category',
-                            data: ['上海市', '浙江省', '江苏省'],
+                            data: categories,
                             axisLine: { lineStyle: { color: '#e2e8f0' } },
                             axisTick: { show: false },
                             axisLabel: { color: '#64748b', margin: 12, fontWeight: 500 }
@@ -653,31 +805,63 @@
                             axisLabel: { formatter: '{value}%', color: '#94a3b8' },
                             splitLine: { lineStyle: { type: 'dashed', color: '#f1f5f9' } }
                         },
-                        series: [
-                            {
-                                name: '退款率',
-                                type: 'bar',
-                                barWidth: '35%',
-                                itemStyle: {
-                                    borderRadius: [6, 6, 0, 0],
-                                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                                        { offset: 0, color: '#4BA3E3' },
-                                        { offset: 1, color: '#1A5F9E' }
-                                    ]),
-                                    shadowColor: 'rgba(75, 163, 227, 0.2)',
-                                    shadowBlur: 10
-                                },
-                                data: [
-                                    {value: 3.2, itemStyle: {color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: '#3ad29f' }, { offset: 1, color: '#27b585' }])}}, 
-                                    {value: 3.6}, 
-                                    {value: 4.2, itemStyle: {color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: '#F5A623' }, { offset: 1, color: '#d98b11' }])}}
-                                ],
-                                animationDelay: function (idx) { return idx * 100; },
-                                animationDuration: 1000,
-                                animationEasing: 'cubicOut'
-                            }
-                        ]
+                        series: []
                     };
+
+                    if (this.chartType === 'bar') {
+                        baseOption.series = [{
+                            name: '退款率',
+                            type: 'bar',
+                            barWidth: '35%',
+                            itemStyle: {
+                                borderRadius: [6, 6, 0, 0],
+                                color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                    { offset: 0, color: '#4BA3E3' },
+                                    { offset: 1, color: '#1A5F9E' }
+                                ]),
+                                shadowColor: 'rgba(75, 163, 227, 0.2)',
+                                shadowBlur: 10
+                            },
+                            data: data,
+                            animationDuration: 1000,
+                            animationEasing: 'cubicOut'
+                        }];
+                    } else if (this.chartType === 'line') {
+                        baseOption.series = [{
+                            name: '退款率',
+                            type: 'line',
+                            smooth: true,
+                            symbol: 'circle',
+                            symbolSize: 8,
+                            lineStyle: { width: 3, color: '#4BA3E3' },
+                            itemStyle: { color: '#4BA3E3', borderWidth: 2, borderColor: '#fff' },
+                            areaStyle: {
+                                color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                    { offset: 0, color: 'rgba(75, 163, 227, 0.3)' },
+                                    { offset: 1, color: 'rgba(75, 163, 227, 0.02)' }
+                                ])
+                            },
+                            data: plainData,
+                            animationDuration: 1000
+                        }];
+                    } else if (this.chartType === 'pie') {
+                        baseOption.grid = { show: false };
+                        baseOption.xAxis = { show: false };
+                        baseOption.yAxis = { show: false };
+                        baseOption.series = [{
+                            name: '退款率',
+                            type: 'pie',
+                            radius: ['40%', '70%'],
+                            center: ['50%', '50%'],
+                            avoidLabelOverlap: true,
+                            itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
+                            label: { show: true, formatter: '{b}\n{d}%', fontSize: 11, color: '#64748b' },
+                            data: categories.map((c, i) => ({ name: c, value: plainData[i] })),
+                            animationDuration: 1000
+                        }];
+                    }
+
+                    return baseOption;
                 },
 
                 renderChart() {

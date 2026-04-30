@@ -156,6 +156,9 @@
                 <a href="b_end_roles.html" class="flex items-center gap-3 px-3 py-2.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg text-sm transition-colors">
                     <i class="fas fa-shield-alt w-5 text-center"></i> 权限与角色
                 </a>
+                <a href="b_end_prompt.html" class="flex items-center gap-3 px-3 py-2.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg text-sm transition-colors">
+                    <i class="fas fa-code w-5 text-center"></i> Prompt 模板
+                </a>
             </nav>
 
             <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 px-2">治理引擎</div>
@@ -169,6 +172,9 @@
             <nav class="space-y-1">
                 <a href="b_end_audit.html" class="flex items-center gap-3 px-3 py-2.5 bg-sky-500/10 text-sky-400 rounded-lg text-sm font-medium border border-sky-500/20">
                     <i class="fas fa-history w-5 text-center"></i> 查询审计日志
+                </a>
+                <a href="b_end_cost.html" class="flex items-center gap-3 px-3 py-2.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg text-sm transition-colors">
+                    <i class="fas fa-chart-line w-5 text-center"></i> 成本监控
                 </a>
             </nav>
         </div>
@@ -280,6 +286,7 @@
                                     <th class="px-5 py-3.5 font-semibold w-64">自然语言提问</th>
                                     <th class="px-5 py-3.5 font-semibold">生成 SQL / 状态</th>
                                     <th class="px-5 py-3.5 font-semibold w-24 text-right">耗时</th>
+                                    <th class="px-5 py-3.5 font-semibold w-20 text-center">操作</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100">
@@ -298,8 +305,11 @@
                                         </div>
                                     </td>
                                     <td class="px-5 py-3 text-right font-mono text-green-600">340ms</td>
+                                    <td class="px-5 py-3 text-center">
+                                        <button class="text-slate-400 hover:text-sky-500 transition-colors" title="提升为模板"><i class="fas fa-bookmark text-[10px]"></i></button>
+                                    </td>
                                 </tr>
-                                
+
                                 <!-- Row 2 (Error) -->
                                 <tr class="hover:bg-slate-50 transition-colors">
                                     <td class="px-5 py-3 font-mono text-slate-500">10:30:15</td>
@@ -315,25 +325,29 @@
                                         </div>
                                     </td>
                                     <td class="px-5 py-3 text-right font-mono text-slate-400">-</td>
+                                    <td class="px-5 py-3 text-center">-</td>
                                 </tr>
 
                                 <!-- Row 3 (Slow) -->
                                 <tr class="hover:bg-slate-50 transition-colors bg-orange-50/30">
                                     <td class="px-5 py-3 font-mono text-slate-500">09:15:02</td>
                                     <td class="px-5 py-3 font-medium text-slate-700">王分析</td>
-                                    <td class="px-5 py-3"><span class="px-2 py-1 bg-purple-50 text-purple-700 rounded text-[10px] font-medium border border-purple-100">user_db</span></td>
+                                    <td class="px-5 py-3"><span class="px-2 py-1 bg-sky-50 text-sky-700 rounded text-[10px] font-medium border border-sky-100">trade_db</span></td>
                                     <td class="px-5 py-3 font-medium text-slate-800">"导出去年所有活跃用户的明细和交易特征"</td>
                                     <td class="px-5 py-3">
                                         <div class="flex flex-col gap-1.5">
                                             <span class="inline-flex items-center gap-1 text-orange-500 font-medium text-[10px]"><i class="fas fa-exclamation-triangle"></i> 慢查询告警</span>
                                             <div class="bg-slate-800 text-slate-300 p-2 rounded-md font-mono text-[10px] overflow-hidden whitespace-nowrap text-ellipsis max-w-md">
-                                                SELECT * FROM user_profile u JOIN trade_db.order_info o ON u.id = o.user_id WHERE...
+                                                SELECT u.user_name, u.vip_level, SUM(o.total_amount) FROM user_profile u JOIN user_behavior o ON u.user_id = o.user_id WHERE...
                                             </div>
                                         </div>
                                     </td>
                                     <td class="px-5 py-3 text-right font-mono text-orange-600 font-bold">12,450ms</td>
+                                    <td class="px-5 py-3 text-center">
+                                        <button class="text-slate-400 hover:text-sky-500 transition-colors" title="提升为模板"><i class="fas fa-bookmark text-[10px]"></i></button>
+                                    </td>
                                 </tr>
-                                
+
                                 <!-- Row 4 (Success) -->
                                 <tr class="hover:bg-slate-50 transition-colors">
                                     <td class="px-5 py-3 font-mono text-slate-500">09:10:44</td>
@@ -349,6 +363,9 @@
                                         </div>
                                     </td>
                                     <td class="px-5 py-3 text-right font-mono text-slate-600">1,200ms</td>
+                                    <td class="px-5 py-3 text-center">
+                                        <button class="text-slate-400 hover:text-sky-500 transition-colors" title="提升为模板"><i class="fas fa-bookmark text-[10px]"></i></button>
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
