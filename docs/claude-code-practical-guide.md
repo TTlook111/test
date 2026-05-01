@@ -743,9 +743,31 @@ claude /login
 ```
 
 **Q: 修改不符合预期怎么办？**
-- 对话中说"不对，还原刚才的修改"
-- 或使用 `git checkout -- <file>` 还原
-- Claude Code 的所有修改都可以通过 Git 回退
+
+部分回退技巧（只撤销有问题的修改，保留正确的部分）：
+
+```bash
+# 方法一：交互式暂存（推荐）
+git add -p                    # 逐块选择要保留的修改
+git stash                     # 暂存已选择的部分
+git checkout -- .             # 回退剩余的修改
+git stash pop                 # 恢复之前暂存的正确部分
+
+# 方法二：先提交再选择性回退
+git add -A && git commit -m "wip: save progress"
+git revert HEAD               # 回退整个提交
+git cherry-pick <commit-id>   # 再把正确的部分单独应用
+
+# 方法三：交互式取消暂存
+git reset -p                  # 逐块取消暂存
+git checkout -- <file>        # 只回退特定文件
+```
+
+预防措施（避免只能全回退）：
+1. **分步确认** — 复杂任务要求 Claude Code "先改 A，确认后再改 B"
+2. **先创建分支** — `git checkout -b claude/temp` 在隔离环境尝试
+3. **阶段性提交** — 每完成一步让 Claude Code 提交一次，保留回退点
+4. **明确边界** — 提示词中写清"只修改 Service 层，不要动 Controller"
 
 **Q: 如何减少 token 消耗？**
 1. 简单问题用 `/fast` 切换到快速模式
