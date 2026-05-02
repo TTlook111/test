@@ -78,11 +78,27 @@ cat error.log | claude -p "分析这个错误日志"
 # 指定模型
 claude --model claude-sonnet-4-6
 
-# 继续上次对话
+# 继续上次对话（自动恢复最近一次会话）
 claude --continue
 
-# 恢复指定对话
+# 恢复指定对话（弹出历史会话列表，或指定 session-id）
+claude --resume
 claude --resume <session-id>
+
+# 恢复与 PR 关联的会话
+claude --from-pr <pr-number>
+
+# 创建新会话分支（配合 --resume 使用，不修改原会话）
+claude --resume <session-id> --fork-session
+
+# 给会话命名（在 /resume 列表中显示）
+claude --name "用户认证模块开发"
+
+# 创建 git worktree 隔离环境
+claude --worktree
+
+# 设置最大花费限额
+claude -p "运行测试" --max-budget-usd 0.5
 ```
 
 ---
@@ -91,23 +107,44 @@ claude --resume <session-id>
 
 ### 2.1 斜杠命令速查
 
+**会话与上下文管理：**
+
 | 命令 | 用途 |
 |------|------|
-| `/help` | 查看帮助 |
-| `/clear` | 清除当前对话上下文 |
-| `/compact` | 压缩对话历史，释放上下文空间 |
+| `/clear` | 清除当前对话上下文，重新开始 |
+| `/compact` | 压缩对话历史，释放上下文空间（可附加自定义提示指导压缩方式） |
+| `/resume` | 恢复之前的对话会话（弹出历史会话列表供选择） |
+| `/rewind` | 回退到当前会话中的某个历史节点（逐步回退检查点） |
+
+**配置与认证：**
+
+| 命令 | 用途 |
+|------|------|
 | `/config` | 查看/修改配置 |
-| `/cost` | 查看当前会话的 token 消耗 |
-| `/doctor` | 诊断环境问题 |
-| `/init` | 初始化 CLAUDE.md 文件 |
-| `/login` | 切换账号 |
+| `/login` | 登录 / 切换账号 |
 | `/logout` | 登出 |
-| `/model` | 切换模型 |
+| `/model` | 切换模型（如 opus、sonnet、haiku） |
 | `/permissions` | 查看/管理权限设置 |
+| `/vim` | 切换 Vim 键绑定模式 |
+
+**开发工具：**
+
+| 命令 | 用途 |
+|------|------|
+| `/init` | 初始化 CLAUDE.md 文件 |
 | `/review` | 审查 PR |
-| `/security-review` | 安全审查 |
-| `/simplify` | 审查并简化已修改的代码 |
+| `/security-review` | 安全审查当前分支的变更 |
+| `/simplify` | 审查已修改代码的质量和效率，并修复问题 |
 | `/fast` | 切换快速模式（Opus 加速输出） |
+| `/mcp` | 管理 MCP 服务器连接 |
+| `/terminal-setup` | 设置终端集成（如 Shift+Enter 换行） |
+
+**信息查看：**
+
+| 命令 | 用途 |
+|------|------|
+| `/help` | 查看帮助信息 |
+| `/cost` | 查看当前会话的 token 消耗和费用 |
 
 ### 2.2 Plan 模式
 
@@ -559,9 +596,346 @@ description: 生成 RESTful API 端点
 
 ---
 
-## 8. 团队协作
+## 8. 多模块项目实战：一个模块一个会话
 
-### 8.1 共享项目配置
+一个真实项目不可能在一个 Claude Code 会话里做完所有事。正确做法是**每个模块、每个功能、每个任务都开独立会话**。
+
+### 8.1 为什么不能一个会话做完
+
+```
+一个会话做所有模块的问题：
+  - 对话越来越长，token 越来越多，费用飙升
+  - 上下文被压缩后，前面的细节丢失
+  - AI 跨模块修改时容易引入 bug
+  - 无法并行（一个会话只能串行）
+```
+
+### 8.2 正确的会话划分策略
+
+```
+项目：NL2SQL 平台
+├── 会话 1：项目初始化 + 基础架构搭建
+├── 会话 2：用户认证模块
+├── 会话 3：NL2SQL 查询模块
+├── 会话 4：审计日志模块
+├── 会话 5：前端页面开发
+├── 会话 6：Bug 修复（登录偶发 500）
+├── 会话 7：性能优化（SQL 生成太慢）
+└── 会话 8：部署配置（Docker + CI/CD）
+```
+
+**原则：一个会话 = 一个明确的任务边界。**
+
+### 8.3 实际操作演示
+
+**会话 1：项目初始化**
+
+```bash
+# 启动新会话，命名
+claude --name "项目初始化"
+
+> 帮我初始化 NL2SQL 平台的项目结构：
+> - Spring Boot 后端（Maven，Java 17）
+> - FastAPI AI 服务（Python，uv 管理依赖）
+> - Vue 3 前端
+> - 配置好 gitignore、docker-compose、README
+
+AI: [创建项目结构...]
+你: [检查、确认、提交]
+
+# 完成后退出
+/exit
+```
+
+**会话 2：用户认证模块（新会话）**
+
+```bash
+# 开新会话
+claude --name "用户认证模块"
+
+> 我要做用户认证模块，需求文档在 docs/nl2sql-单库多表版-项目构想.md 的"用户管理"章节。
+> 请先读一下，然后帮我实现：
+> 1. 用户注册（邮箱 + 密码）
+> 2. 用户登录（返回 JWT）
+> 3. Token 刷新
+> 4. 基于角色的权限校验（ADMIN / USER）
+>
+> 参考现有的项目结构和代码风格。
+
+AI: [读构想文档、读现有代码、开始实现...]
+你: [逐步确认、跑测试、验证]
+```
+
+**会话 3：NL2SQL 查询模块（又一个新会话）**
+
+```bash
+claude --name "NL2SQL查询模块"
+
+> 我要做 NL2SQL 查询模块，需求在 docs/nl2sql-单库多表版-项目构想.md 的"智能查询"章节。
+> 用户认证模块已经做完了（在 com.example.auth 包下），
+> 请基于现有的认证体系，实现：
+> 1. 自然语言输入接口
+> 2. Schema 检索（RAG）
+> 3. SQL 生成（LangGraph）
+> 4. SQL 安全沙箱
+> 5. 查询结果返回
+
+AI: [读文档、读认证代码、实现查询模块...]
+```
+
+**会话 6：Bug 修复（针对性会话）**
+
+```bash
+claude --name "修复登录500"
+
+> 用户反馈登录偶尔报 500，错误日志如下：
+> [粘贴日志]
+>
+> 请定位原因并修复。只动 AuthService，不要改其他模块。
+
+# 修完确认后，立刻结束会话
+```
+
+### 8.4 跨会话如何保持上下文
+
+不同会话之间是隔离的，但有几种方式保持连贯：
+
+**方式 1：CLAUDE.md（最重要）**
+
+每次会话 Claude Code 都会自动读取 CLAUDE.md。把关键信息写进去：
+
+```markdown
+# NL2SQL 平台
+
+## 已完成模块
+- [x] 项目初始化（Spring Boot + FastAPI + Vue）
+- [x] 用户认证（JWT + RBAC，见 com.example.auth）
+
+## 当前进行中
+- [ ] NL2SQL 查询模块
+
+## 关键约定
+- API 返回格式：ResponseResult<T>
+- 异常处理：BusinessException + 错误码
+- 数据库：MySQL 8.0，字段 snake_case
+```
+
+**方式 2：Memory 系统**
+
+```
+# 在会话 2 中
+> 记住：用户认证模块的 JWT 密钥配置在 application.yml 的 jwt.secret 字段，
+> Token 有效期 2 小时，Refresh Token 有效期 7 天
+
+# 在会话 3 中，Claude Code 自动读取 Memory，知道 JWT 的配置
+```
+
+**方式 3：构想文档作为共享上下文**
+
+```
+# 每个新会话开始时
+> 先读一下 docs/nl2sql-单库多表版-项目构想.md，了解项目整体设计
+> 然后帮我实现 XX 模块
+```
+
+### 8.5 会话命名规范
+
+```bash
+claude --name "模块名-具体任务"
+
+# 示例
+claude --name "auth-实现注册登录"
+claude --name "query-Schema检索"
+claude --name "bugfix-登录500"
+claude --name "perf-SQL生成优化"
+claude --name "deploy-docker配置"
+```
+
+这样 `/resume` 时能快速找到需要的会话。
+
+### 8.6 会话恢复与分支
+
+```bash
+# 恢复之前的会话（弹出列表选择）
+claude --resume
+
+# 恢复指定会话
+claude --resume <session-id>
+
+# 基于旧会话开新分支（不修改原会话）
+claude --resume <session-id> --fork-session
+
+# 场景：昨天做了认证模块，今天想加一个功能
+# 用 --fork-session 基于昨天的上下文继续，但不污染昨天的会话记录
+```
+
+### 8.7 并行开发多个模块
+
+如果两个人同时开发不同模块：
+
+```
+开发者 A：claude --name "auth-权限校验"      # 在 feature/auth 分支
+开发者 B：claude --name "query-Schema检索"   # 在 feature/query 分支
+
+各自在自己的 git worktree 中工作，互不干扰：
+claude --worktree
+# 自动创建 .claude/worktrees/ 下的隔离环境
+```
+
+---
+
+## 9. 缓存优化：怎么用才省钱
+
+Claude Code 的费用主要来自 token 消耗。理解缓存机制，能省 50% 以上的钱。
+
+### 9.1 缓存是怎么工作的
+
+```
+每次你发消息，Claude Code 发送给 API 的内容 = 系统提示 + 对话历史 + 你的消息
+
+系统提示（System Prompt）包含：
+  - Claude Code 的内置指令
+  - CLAUDE.md 的内容
+  - Memory 文件
+  - 工具定义
+
+这部分每次都会发送，但 Anthropic 有 Prompt Cache 机制：
+  - 相同的前缀内容会被缓存
+  - 缓存命中时，缓存部分的费用只有正常价格的 10%
+  - 缓存 TTL = 5 分钟（超过 5 分钟没用就失效）
+```
+
+### 9.2 省钱的核心原则
+
+```
+原则 1：让缓存尽量命中 → 系统提示和 CLAUDE.md 不要频繁改动
+原则 2：减少发送的 token 数量 → 对话不要太长
+原则 3：简单任务用便宜模型 → haiku 比 opus 便宜 10-20 倍
+原则 4：一次说清，减少来回 → 每轮对话都有成本
+```
+
+### 9.3 实操优化策略
+
+**策略 1：CLAUDE.md 精简但稳定**
+
+```
+# 不好：每次改 CLAUDE.md 都会导致缓存失效
+# 不好：CLAUDE.md 太长（超过 200 行），每次都发送大量 token
+
+# 好：CLAUDE.md 只放核心不变的信息
+# 好：经常变化的信息放 Memory（不进入系统提示的缓存前缀）
+```
+
+**策略 2：用 /compact 而不是 /clear**
+
+```
+/compact  → 压缩对话历史，保留关键信息，系统提示缓存还在
+/clear    → 清空一切，下次发消息时系统提示需要重新缓存
+
+什么时候用 /compact：对话超过 20 轮，感觉 AI 回复变慢或变贵
+什么时候用 /clear：要完全切换任务方向
+```
+
+**策略 3：新会话比长会话省钱**
+
+```
+一个 100 轮的长会话：
+  第 100 轮时，要发送前 99 轮的历史 → 大量 token
+
+10 个 10 轮的短会话：
+  每个会话只发送 10 轮历史 → 少量 token
+  而且每个新会话的系统提示能命中缓存
+
+结论：做完一个模块就开新会话，不要在一个会话里做所有事
+```
+
+**策略 4：简单任务用小模型**
+
+```bash
+# 复杂任务（架构设计、复杂 bug）
+claude --model opus
+
+# 日常开发（写接口、改代码）
+claude --model sonnet
+
+# 简单任务（改个配置、问个问题）
+claude --model haiku
+
+# 或者在会话中切换
+/model haiku
+> 帮我把 application.yml 里的端口改成 8081
+/model sonnet
+> 帮我实现用户注册接口
+```
+
+**策略 5：提示词一次说清**
+
+```
+# 不好：来回 5 轮
+> 帮我写个接口
+> 要 POST 的
+> 接收 JSON
+> 返回分页结果
+> 加个参数校验
+
+# 好：1 轮搞定
+> 帮我写一个 POST /api/users 接口：
+> - 接收 JSON：{ "name": string, "email": string }
+> - 参数校验：name 2-50 字符，email 格式校验
+> - 返回 ResponseResult<UserVO>
+> - 参考现有的 /api/orders 的写法
+```
+
+**策略 6：用 --exclude-dynamic-system-prompt-sections**
+
+```bash
+# 这个选项把动态内容（当前目录、环境信息、git 状态）从系统提示中移出
+# 让系统提示更稳定，提高缓存命中率
+claude --exclude-dynamic-system-prompt-sections
+```
+
+**策略 7：设置花费限额**
+
+```bash
+# 设置最大花费（非交互模式）
+claude -p "运行测试" --max-budget-usd 0.5
+
+# 随时查看当前会话花费
+/cost
+```
+
+### 9.4 不同场景的推荐配置
+
+| 场景 | 模型 | 会话策略 | 预估花费 |
+|------|------|----------|----------|
+| 问一个简单问题 | haiku | 单轮 | < $0.01 |
+| 改一个配置文件 | haiku | 单轮 | < $0.01 |
+| 写一个接口（3-5 个文件）| sonnet | 单会话 | $0.05-0.15 |
+| 实现一个模块（10+ 文件）| sonnet | 单会话 | $0.2-0.5 |
+| 架构设计 + 方案讨论 | opus | 单会话 | $0.3-1.0 |
+| 复杂 bug 排查 | sonnet | 单会话 | $0.1-0.3 |
+| 代码审查 | sonnet | 单会话 | $0.05-0.2 |
+
+### 9.5 实际花费参考
+
+```
+一天的典型开发：
+  会话 1：项目初始化（sonnet）        ~$0.15
+  会话 2：实现用户注册（sonnet）      ~$0.10
+  会话 3：写单元测试（sonnet）        ~$0.08
+  会话 4：改配置（haiku）             ~$0.01
+  会话 5：代码审查（sonnet）          ~$0.05
+  ─────────────────────────────────
+  合计                                ~$0.39/天
+
+如果用 opus 全程：                    ~$2-5/天（贵 5-10 倍）
+```
+
+---
+
+## 10. 团队协作
+
+### 10.1 共享项目配置
 
 将以下文件提交到 Git 仓库，团队共享：
 
@@ -569,13 +943,10 @@ description: 生成 RESTful API 端点
 .claude/
 ├── settings.json       # 权限、MCP、Hooks 配置
 ├── skills/             # 自定义 Skills
-│   ├── gen-api.md
-│   └── review-style.md
-└── shared-memory.md    # 团队共享记忆
-CLAUDE.md               # 项目说明和规范
+CLAUDE.md               # 项目说明和规范（最重要）
 ```
 
-### 8.2 统一代码规范
+### 10.2 统一代码规范
 
 在 CLAUDE.md 中定义规范，所有团队成员使用 Claude Code 时自动遵循：
 
@@ -588,110 +959,17 @@ CLAUDE.md               # 项目说明和规范
 - 测试：覆盖率要求 > 80%，Service 层必须写单元测试
 ```
 
-### 8.3 Code Review 一致性
+### 10.3 Code Review 一致性
 
 ```
 > 按照 CLAUDE.md 中定义的代码规范审查这个 PR
 ```
 
-### 8.4 知识传递
-
-新成员加入时：
-```
-> 帮我梳理这个项目的架构，重点说明：
-> - 模块划分和职责
-> - 核心业务流程
-> - 关键设计决策的原因
-> - 开发环境搭建步骤
-```
-
 ---
 
-## 9. 提示词技巧与最佳实践
+## 11. 常见问题与排错
 
-### 9.1 提示词原则
-
-**具体优于模糊：**
-
-```
-# 不好
-> 帮我优化这个方法
-
-# 好
-> 这个方法在大数据量时很慢（10万条记录需要 8 秒），
-> 帮我优化查询性能，目标是降到 1 秒以内。
-> 可以考虑分页、索引、或缓存策略。
-```
-
-**提供上下文：**
-
-```
-# 不好
-> 帮我写个接口
-
-# 好
-> 帮我写一个批量导入用户的接口：
-> - POST /api/users/import
-> - 接收 CSV 文件
-> - 异步处理，返回任务 ID
-> - 通过 WebSocket 推送进度
-> - 参考现有的 /api/orders/import 的实现模式
-```
-
-**指定约束：**
-
-```
-> 帮我重构这个类，要求：
-> - 保持向后兼容，不改 public 方法签名
-> - 使用策略模式替代 if-else
-> - 不引入新的外部依赖
-```
-
-### 9.2 高效对话策略
-
-**逐步细化：**
-```
-第 1 轮：> 帮我设计一个限流模块的接口
-第 2 轮：> 基于这个接口，用令牌桶算法实现
-第 3 轮：> 加上 Redis 支持分布式限流
-第 4 轮：> 写完整的单元测试
-```
-
-**利用上下文：**
-```
-> 刚才那个 UserService，再加一个批量查询的方法
-> 沿用之前的返回格式和异常处理方式
-```
-
-**纠正方向：**
-```
-> 不对，我要的不是缓存方案，而是用数据库乐观锁来处理并发
-> 请重新实现
-```
-
-### 9.3 性能优化技巧
-
-| 技巧 | 说明 |
-|------|------|
-| `/compact` | 对话太长时压缩上下文，减少 token 消耗 |
-| `--model haiku` | 简单任务用小模型，省钱快速 |
-| 明确文件路径 | "看 src/.../UserService.java" 比 "看 UserService" 搜索更快 |
-| 一次说清 | 减少来回轮数，节省 token 和时间 |
-| `/cost` | 随时查看消耗，控制成本 |
-
-### 9.4 避免的常见错误
-
-1. **一次性改太多** — 分步骤来，每步确认
-2. **不给上下文** — Claude Code 不知道你脑中的需求细节
-3. **忽略 Plan 模式** — 复杂任务先对齐方案再动手
-4. **不看 diff** — 始终检查 Claude Code 的修改是否符合预期
-5. **不利用 CLAUDE.md** — 项目规范写一次，永久生效
-
----
-
-## 10. 常见问题与排错
-
-### 10.1 安装与环境
+### 11.1 安装与环境
 
 **Q: `claude` 命令找不到？**
 ```bash
@@ -716,7 +994,7 @@ echo $ANTHROPIC_API_KEY
 claude /login
 ```
 
-### 10.2 使用问题
+### 11.2 使用问题
 
 **Q: Claude Code 似乎"忘记"了之前说的话？**
 - 对话太长会自动压缩上下文
@@ -770,12 +1048,15 @@ git checkout -- <file>        # 只回退特定文件
 4. **明确边界** — 提示词中写清"只修改 Service 层，不要动 Controller"
 
 **Q: 如何减少 token 消耗？**
-1. 简单问题用 `/fast` 切换到快速模式
-2. 对话太长时 `/compact` 压缩
-3. 不需要大模型的任务指定 `--model haiku`
-4. 提示词尽量一次说清，减少来回
 
-### 10.3 CI/CD 集成
+详见第 9 章"缓存优化"。核心要点：
+1. 做完一个模块就开新会话，不要一个会话做所有事
+2. 用 `/compact` 而不是 `/clear`
+3. 简单任务用 `--model haiku`
+4. 提示词一次说清，减少来回
+5. 用 `/cost` 随时监控花费
+
+### 11.3 CI/CD 集成
 
 **在 GitHub Actions 中使用：**
 
@@ -796,15 +1077,6 @@ jobs:
           review_mode: "security"
 ```
 
-**在本地脚本中使用：**
-
-```bash
-#!/bin/bash
-# 运行测试并生成报告
-claude -p "运行 mvn test，如果有失败的测试，分析原因并给出修复建议" \
-  --output-file test-report.md
-```
-
 ---
 
 ## 附录：速查卡片
@@ -818,12 +1090,62 @@ claude -p "运行 mvn test，如果有失败的测试，分析原因并给出修
 | `Ctrl+L` | 清屏 |
 | `↑` | 上一条历史命令 |
 | `Tab` | 自动补全文件路径 |
+| `Shift+Enter` | 换行（需先运行 `/terminal-setup`） |
+
+### 斜杠命令速查
+
+```
+会话管理：  /clear  /compact  /resume  /rewind
+配置认证：  /config  /login  /logout  /model  /permissions  /vim
+开发工具：  /init  /review  /security-review  /simplify  /fast  /mcp  /terminal-setup
+信息查看：  /help  /cost
+```
+
+### 多模块会话管理速查
+
+```bash
+# 开新会话（命名）
+claude --name "模块名-任务描述"
+
+# 恢复旧会话
+claude --resume                    # 弹出列表
+claude --resume <session-id>       # 指定会话
+
+# 基于旧会话开分支
+claude --resume <id> --fork-session
+
+# 隔离环境开发
+claude --worktree
+```
+
+### 省钱速查
+
+```bash
+# 选模型
+claude --model haiku               # 简单任务（最便宜）
+claude --model sonnet              # 日常开发（推荐）
+claude --model opus                # 复杂设计（最贵）
+
+# 控制花费
+/cost                              # 查看当前花费
+--max-budget-usd 0.5               # 设置花费上限
+
+# 优化缓存
+/compact                           # 压缩对话（不清空，保留缓存）
+--exclude-dynamic-system-prompt-sections  # 提高缓存命中率
+
+# 核心原则
+# 1. 一个模块一个会话
+# 2. 用 /compact 不用 /clear
+# 3. 简单任务用 haiku
+# 4. 一次说清减少来回
+```
 
 ### 项目文件结构
 
 ```
 your-project/
-├── CLAUDE.md                    # 项目级指令（自动加载）
+├── CLAUDE.md                    # 项目级指令（自动加载，最重要）
 ├── .claude/
 │   ├── settings.json            # 权限、MCP、Hooks
 │   ├── settings.local.json      # 个人配置（不提交）
@@ -849,4 +1171,6 @@ CLAUDE.md                        # 项目指令
 
 ---
 
-> **持续更新：** Claude Code 迭代很快，建议关注 [官方文档](https://docs.anthropic.com/claude-code) 和 [GitHub](https://github.com/anthropics/claude-code) 获取最新功能。
+> **项目地址：** https://github.com/anthropics/claude-code
+>
+> **一句话总结：** 一个模块一个会话，CLAUDE.md 放不变的信息，Memory 放会变的信息，简单任务用 haiku，用 /compact 保持缓存。
